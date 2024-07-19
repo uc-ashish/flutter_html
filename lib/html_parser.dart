@@ -79,7 +79,7 @@ class HtmlParser extends StatelessWidget {
         buildContext: context,
         parser: this,
         tree: cleanedTree,
-        style: Style.fromTextStyle(Theme.of(context).textTheme.bodyText2!),
+        style: Style.fromTextStyle(Theme.of(context).textTheme.bodyMedium!),
       ),
       cleanedTree,
     );
@@ -96,7 +96,7 @@ class HtmlParser extends StatelessWidget {
         buildContext: context,
         parser: this,
         tree: cleanedTree,
-        style: Style.fromTextStyle(Theme.of(context).textTheme.bodyText2!),
+        style: Style.fromTextStyle(Theme.of(context).textTheme.bodyMedium!),
       ),
     );
   }
