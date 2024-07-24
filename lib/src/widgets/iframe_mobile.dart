@@ -27,19 +27,25 @@ class IframeContentElement extends ReplacedElement {
   @override
   Widget toWidget(RenderContext context) {
     final sandboxMode = attributes["sandbox"];
+    final webviewController = WebViewController()
+      ..setNavigationDelegate(navigationDelegate!)
+      ..setJavaScriptMode(
+        sandboxMode == null || sandboxMode == "allow-scripts"
+            ? JavaScriptMode.unrestricted
+            : JavaScriptMode.disabled,
+      )
+      ..loadRequest(Uri.parse(src!));
+
     return Container(
       width: width ?? (height ?? 150) * 2,
       height: height ?? (width ?? 300) / 2,
-      child: WebView(
-        initialUrl: src,
+      child: WebViewWidget(
         key: key,
-        javascriptMode: sandboxMode == null || sandboxMode == "allow-scripts"
-            ? JavascriptMode.unrestricted
-            : JavascriptMode.disabled,
-        navigationDelegate: navigationDelegate,
         gestureRecognizers: {
-          Factory<VerticalDragGestureRecognizer>(() => VerticalDragGestureRecognizer())
+          Factory<VerticalDragGestureRecognizer>(
+              () => VerticalDragGestureRecognizer())
         },
+        controller: webviewController,
       ),
     );
   }
