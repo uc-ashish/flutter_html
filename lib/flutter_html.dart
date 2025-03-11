@@ -1,149 +1,183 @@
 library flutter_html;
 
-//export image render api
-export 'package:flutter_html/image_render.dart';
-//export style api
-export 'package:flutter_html/style.dart';
-//export render context api
-export 'package:flutter_html/html_parser.dart';
-//export src for advanced custom render uses (e.g. casting context.tree)
-export 'package:flutter_html/src/layout_element.dart';
-export 'package:flutter_html/src/replaced_element.dart';
-export 'package:flutter_html/src/styled_element.dart';
-export 'package:flutter_html/src/interactable_element.dart';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_html/html_parser.dart';
-import 'package:flutter_html/image_render.dart';
-import 'package:flutter_html/style.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_html/src/html_parser.dart';
+import 'package:flutter_html/src/extension/html_extension.dart';
+import 'package:flutter_html/src/style.dart';
 import 'package:html/dom.dart' as dom;
 
-class Html extends StatelessWidget {
+//export render context api
+export 'package:flutter_html/src/html_parser.dart';
+//export src for advanced custom render uses (e.g. casting context.tree)
+export 'package:flutter_html/src/anchor.dart';
+export 'package:flutter_html/src/tree/image_element.dart';
+export 'package:flutter_html/src/tree/interactable_element.dart';
+export 'package:flutter_html/src/tree/replaced_element.dart';
+export 'package:flutter_html/src/tree/styled_element.dart';
+//export css_box_widget for use in extensions.
+export 'package:flutter_html/src/css_box_widget.dart';
+//export style api
+export 'package:flutter_html/src/style.dart';
+//export extension api
+export 'package:flutter_html/src/extension/html_extension.dart';
+
+class Html extends StatefulWidget {
   /// The `Html` widget takes HTML as input and displays a RichText
   /// tree of the parsed HTML content.
   ///
   /// **Attributes**
+  ///
   /// **data** *required* takes in a String of HTML data (required only for `Html` constructor).
+  ///
   /// **document** *required* takes in a Document of HTML data (required only for `Html.fromDom` constructor).
+  ///
+  /// **extensions** A list of [Extension]s that add additional capabilities to flutter_html
+  /// See the [Extension] class for more details.
   ///
   /// **onLinkTap** This function is called whenever a link (`<a href>`)
   /// is tapped.
-  /// **customRender** This function allows you to return your own widgets
-  /// for existing or custom HTML tags.
-  /// See [its wiki page](https://github.com/Sub6Resources/flutter_html/wiki/All-About-customRender) for more info.
-  ///
-  /// **onImageError** This is called whenever an image fails to load or
-  /// display on the page.
   ///
   /// **shrinkWrap** This makes the Html widget take up only the width it
   /// needs and no more.
   ///
-  /// **onImageTap** This is called whenever an image is tapped.
+  /// **onlyRenderTheseTags** provides an exclusive list of tags to render.
   ///
-  /// **blacklistedElements** Tag names in this array are ignored during parsing and rendering.
+  /// **doNotRenderTheseTags** provides a short list of tags that the Html
+  /// widget should completely ignore.
   ///
   /// **style** Pass in the style information for the Html here.
   /// See [its wiki page](https://github.com/Sub6Resources/flutter_html/wiki/Style) for more info.
   Html({
     Key? key,
+    GlobalKey? anchorKey,
     required this.data,
     this.onLinkTap,
-    this.customRender = const {},
-    this.customImageRenders = const {},
-    this.onImageError,
-    this.onMathError,
+    this.onAnchorTap,
+    this.extensions = const [],
+    this.onCssParseError,
     this.shrinkWrap = false,
-    this.onImageTap,
-    this.blacklistedElements = const [],
+    this.onlyRenderTheseTags,
+    this.doNotRenderTheseTags,
     this.style = const {},
-    this.navigationDelegateForIframe,
-  }) : document = null,
-        assert (data != null),
+  })  : documentElement = null,
+        assert(data != null),
+        _anchorKey = anchorKey ?? GlobalKey(),
         super(key: key);
 
   Html.fromDom({
     Key? key,
-    @required this.document,
+    GlobalKey? anchorKey,
+    @required dom.Document? document,
     this.onLinkTap,
-    this.customRender = const {},
-    this.customImageRenders = const {},
-    this.onImageError,
-    this.onMathError,
+    this.onAnchorTap,
+    this.extensions = const [],
+    this.onCssParseError,
     this.shrinkWrap = false,
-    this.onImageTap,
-    this.blacklistedElements = const [],
+    this.doNotRenderTheseTags,
+    this.onlyRenderTheseTags,
     this.style = const {},
-    this.navigationDelegateForIframe,
-  }) : data = null,
+  })  : data = null,
         assert(document != null),
+        documentElement = document!.documentElement,
+        _anchorKey = anchorKey ?? GlobalKey(),
         super(key: key);
+
+  Html.fromElement({
+    Key? key,
+    GlobalKey? anchorKey,
+    @required this.documentElement,
+    this.onLinkTap,
+    this.onAnchorTap,
+    this.extensions = const [],
+    this.onCssParseError,
+    this.shrinkWrap = false,
+    this.doNotRenderTheseTags,
+    this.onlyRenderTheseTags,
+    this.style = const {},
+  })  : data = null,
+        assert(documentElement != null),
+        _anchorKey = anchorKey ?? GlobalKey(),
+        super(key: key);
+
+  /// A unique key for this Html widget to ensure uniqueness of anchors
+  final GlobalKey _anchorKey;
 
   /// The HTML data passed to the widget as a String
   final String? data;
 
-  /// The HTML data passed to the widget as a pre-processed [dom.Document]
-  final dom.Document? document;
+  /// The HTML data passed to the widget as a pre-processed [dom.Element]
+  final dom.Element? documentElement;
 
   /// A function that defines what to do when a link is tapped
   final OnTap? onLinkTap;
 
-  /// An API that allows you to customize the entire process of image rendering.
-  /// See the README for more details.
-  final Map<ImageSourceMatcher, ImageRender> customImageRenders;
+  /// A function that defines what to do when an anchor link is tapped. When this value is set,
+  /// the default anchor behaviour is overwritten.
+  final OnTap? onAnchorTap;
 
-  /// A function that defines what to do when an image errors
-  final ImageErrorListener? onImageError;
-
-  /// A function that defines what to do when either <math> or <tex> fails to render
-  /// You can return a widget here to override the default error widget.
-  final OnMathError? onMathError;
-
+  /// A function that defines what to do when CSS fails to parse
+  final OnCssParseError? onCssParseError;
 
   /// A parameter that should be set when the HTML widget is expected to be
   /// flexible
   final bool shrinkWrap;
 
-  /// A function that defines what to do when an image is tapped
-  final OnTap? onImageTap;
+  /// A set of HTML tags to completely ignore in the provided code.
+  final Set<String>? doNotRenderTheseTags;
 
-  /// A list of HTML tags that defines what elements are not rendered
-  final List<String> blacklistedElements;
+  /// A set of the only HTML tags that should be rendered by this widget.
+  ///
+  /// Note that the html parser wraps your html in an <html> and <body> tag
+  /// by default, so you should include those in this set if you want any
+  /// of your html to render.
+  final Set<String>? onlyRenderTheseTags;
 
-  /// Either return a custom widget for specific node types or return null to
-  /// fallback to the default rendering.
-  final Map<String, CustomRender> customRender;
+  /// A list of [HtmlExtension]s that add additional capabilities to flutter_html
+  /// See the [HtmlExtension] class for more details.
+  final List<HtmlExtension> extensions;
 
   /// An API that allows you to override the default style for any HTML element
   final Map<String, Style> style;
 
-  /// Decides how to handle a specific navigation request in the WebView of an
-  /// Iframe. It's necessary to use the webview_flutter package inside the app
-  /// to use NavigationDelegate.
-  final NavigationDelegate? navigationDelegateForIframe;
+  @override
+  State<StatefulWidget> createState() => _HtmlState();
+}
+
+class _HtmlState extends State<Html> {
+  late dom.Element documentElement;
+
+  @override
+  void initState() {
+    super.initState();
+    documentElement = widget.data != null
+        ? HtmlParser.parseHTML(widget.data!)
+        : widget.documentElement!;
+  }
+
+  @override
+  void didUpdateWidget(Html oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((widget.data != null && oldWidget.data != widget.data) ||
+        oldWidget.documentElement != widget.documentElement) {
+      documentElement = widget.data != null
+          ? HtmlParser.parseHTML(widget.data!)
+          : widget.documentElement!;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final dom.Document doc = data != null ? HtmlParser.parseHTML(data!) : document!;
-    final double? width = shrinkWrap ? null : MediaQuery.of(context).size.width;
-
-    return Container(
-      width: width,
-      child: HtmlParser(
-        htmlData: doc,
-        onLinkTap: onLinkTap,
-        onImageTap: onImageTap,
-        onImageError: onImageError,
-        onMathError: onMathError,
-        shrinkWrap: shrinkWrap,
-        style: style,
-        customRender: customRender,
-        imageRenders: {}
-          ..addAll(customImageRenders)
-          ..addAll(defaultImageRenders),
-        blacklistedElements: blacklistedElements,
-        navigationDelegateForIframe: navigationDelegateForIframe,
-      ),
+    return HtmlParser(
+      key: widget._anchorKey,
+      htmlData: documentElement,
+      onLinkTap: widget.onLinkTap,
+      onAnchorTap: widget.onAnchorTap,
+      onCssParseError: widget.onCssParseError,
+      shrinkWrap: widget.shrinkWrap,
+      style: widget.style,
+      extensions: widget.extensions,
+      doNotRenderTheseTags: widget.doNotRenderTheseTags,
+      onlyRenderTheseTags: widget.onlyRenderTheseTags,
     );
   }
 }
